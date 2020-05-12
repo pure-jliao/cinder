@@ -30,6 +30,7 @@ from cinder.tests.unit import fake_group_snapshot
 from cinder.tests.unit import fake_snapshot
 from cinder.tests.unit import fake_volume
 from cinder.tests.unit import test
+from cinder.volume import volume_types
 from cinder.volume import volume_utils
 
 
@@ -977,15 +978,16 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
 
     @mock.patch(BASE_DRIVER_OBJ + "._add_to_group_if_needed")
     @mock.patch(BASE_DRIVER_OBJ + "._get_replication_type_from_vol_type")
+    @mock.patch.object(volume_types, 'get_volume_type')
     def test_create_volume_from_snapshot(self, mock_get_replicated_type,
-                                         mock_add_to_group):
+                                         mock_add_to_group, mock_get_volume_type):
         srcvol, _ = self.new_fake_vol()
         snap = fake_snapshot.fake_snapshot_obj(mock.MagicMock(), volume=srcvol)
         snap_name = snap["volume_name"] + "-cinder." + snap["name"]
         mock_get_replicated_type.return_value = None
 
         vol, vol_name = self.new_fake_vol(set_provider_id=False)
-
+        mock_get_volume_type.return_value = vol.volume_type
         # Branch where extend unneeded
         self.driver.create_volume_from_snapshot(vol, snap)
         self.array.copy_volume.assert_called_with(snap_name, vol_name)
@@ -2661,13 +2663,15 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
             "some_pgroup",
         )
 
-    def test_create_volume_replicated_async(self):
+    @mock.patch.object(volume_types, 'get_volume_type')
+    def test_create_volume_replicated_async(self, mock_get_volume_type):
         repl_extra_specs = {
             'replication_type': '<in> async',
             'replication_enabled': '<is> true',
         }
         vol, vol_name = self.new_fake_vol(spec={"size": 2},
                                           type_extra_specs=repl_extra_specs)
+        mock_get_volume_type.return_value = vol.volume_type
 
         self.driver.create_volume(vol)
 
@@ -2677,13 +2681,16 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
             REPLICATION_PROTECTION_GROUP,
             addvollist=[vol["name"] + "-cinder"])
 
-    def test_create_volume_replicated_sync(self):
+    @mock.patch.object(volume_types, 'get_volume_type')
+    def test_create_volume_replicated_sync(self, mock_get_volume_type):
         repl_extra_specs = {
             'replication_type': '<in> sync',
             'replication_enabled': '<is> true',
         }
         vol, vol_name = self.new_fake_vol(spec={"size": 2},
                                           type_extra_specs=repl_extra_specs)
+
+        mock_get_volume_type.return_value = vol.volume_type
 
         self.driver.create_volume(vol)
 
@@ -3804,7 +3811,7 @@ class PureVolumeUpdateStatsTestCase(PureBaseSharedDriverTestCase):
             'consistencygroup_support': True,
             'thin_provisioning_support': True,
             'multiattach': True,
-            'QoS_support': False,
+            'QoS_support': True,
             'total_capacity_gb': TOTAL_CAPACITY,
             'free_capacity_gb': TOTAL_CAPACITY - USED_SPACE,
             'reserved_percentage': reserved_percentage,
