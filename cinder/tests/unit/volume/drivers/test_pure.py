@@ -979,8 +979,9 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
     @mock.patch(BASE_DRIVER_OBJ + "._add_to_group_if_needed")
     @mock.patch(BASE_DRIVER_OBJ + "._get_replication_type_from_vol_type")
     @mock.patch.object(volume_types, 'get_volume_type')
-    def test_create_volume_from_snapshot(self, mock_get_replicated_type,
-                                         mock_add_to_group, mock_get_volume_type):
+    def test_create_volume_from_snapshot(self, mock_get_volume_type,
+                                         mock_get_replicated_type,
+                                         mock_add_to_group):
         srcvol, _ = self.new_fake_vol()
         snap = fake_snapshot.fake_snapshot_obj(mock.MagicMock(), volume=srcvol)
         snap_name = snap["volume_name"] + "-cinder." + snap["name"]
@@ -1000,7 +1001,9 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
 
     @mock.patch(BASE_DRIVER_OBJ + "._add_to_group_if_needed")
     @mock.patch(BASE_DRIVER_OBJ + "._get_replication_type_from_vol_type")
+    @mock.patch.object(volume_types, 'get_volume_type')
     def test_create_volume_from_snapshot_with_extend(self,
+                                                     mock_get_volume_type,
                                                      mock_get_replicated_type,
                                                      mock_add_to_group):
         srcvol, srcvol_name = self.new_fake_vol(spec={"size": 1})
@@ -1010,6 +1013,7 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
 
         vol, vol_name = self.new_fake_vol(set_provider_id=False,
                                           spec={"size": 2})
+        mock_get_volume_type.return_value = vol.volume_type
 
         self.driver.create_volume_from_snapshot(vol, snap)
         expected = [mock.call.copy_volume(snap_name, vol_name),
@@ -1017,7 +1021,8 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
         self.array.assert_has_calls(expected)
         mock_add_to_group.assert_called_once_with(vol, vol_name)
 
-    def test_create_volume_from_snapshot_sync(self):
+    @mock.patch.object(volume_types, 'get_volume_type')
+    def test_create_volume_from_snapshot_sync(self, mock_get_volume_type):
         repl_extra_specs = {
             'replication_type': '<in> async',
             'replication_enabled': '<is> true',
@@ -1027,6 +1032,7 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
 
         vol, vol_name = self.new_fake_vol(set_provider_id=False,
                                           type_extra_specs=repl_extra_specs)
+        mock_get_volume_type.return_value = vol.volume_type
         self.driver.create_volume_from_snapshot(vol, snap)
         self.array.copy_volume.assert_called_with(snap_name, vol_name)
 
@@ -1034,7 +1040,9 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
     @mock.patch(BASE_DRIVER_OBJ + "._extend_if_needed", autospec=True)
     @mock.patch(BASE_DRIVER_OBJ + "._get_pgroup_snap_name_from_snapshot")
     @mock.patch(BASE_DRIVER_OBJ + "._get_replication_type_from_vol_type")
-    def test_create_volume_from_cgsnapshot(self, mock_get_replicated_type,
+    @mock.patch.object(volume_types, 'get_volume_type')
+    def test_create_volume_from_cgsnapshot(self, mock_get_volume_type,
+                                           mock_get_replicated_type,
                                            mock_get_snap_name,
                                            mock_extend_if_needed,
                                            mock_add_to_group):
@@ -1042,6 +1050,7 @@ class PureBaseVolumeDriverTestCase(PureBaseSharedDriverTestCase):
         cgsnap = fake_group_snapshot.fake_group_snapshot_obj(mock.MagicMock(),
                                                              group=cgroup)
         vol, vol_name = self.new_fake_vol(spec={"group": cgroup})
+        mock_get_volume_type.return_value = vol.volume_type
         snap = fake_snapshot.fake_snapshot_obj(mock.MagicMock(), volume=vol)
         snap.group_snapshot_id = cgsnap.id
         snap.group_snapshot = cgsnap
