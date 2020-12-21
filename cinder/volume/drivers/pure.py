@@ -446,7 +446,7 @@ class PureBaseVolumeDriver(san.SanDriver):
                 qos = self._get_qos_settings(volume_type)
         if qos is not None:
             LOG.debug('QoS: %(qos)s', {'qos': qos})
-            if qos['maxIOPS'] == '0' and qos['maxBWS'] == 0:
+            if qos['maxIOPS'] == 0 and qos['maxBWS'] == 0:
                 current_array.create_volume(vol_name, vol_size,
                                             iops_limit='',
                                             bandwidth_limit='')
@@ -483,7 +483,7 @@ class PureBaseVolumeDriver(san.SanDriver):
         if type_id is not None:
             volume_type = volume_types.get_volume_type(ctxt, type_id)
             if (current_array.get_rest_version() in QOS_REQUIRED_API_VERSION):
-                qos = self._get_qos_settings(volume, volume_type)
+                qos = self._get_qos_settings(volume_type)
 
         current_array.copy_volume(snap_name, vol_name)
         self._extend_if_needed(current_array,
@@ -492,11 +492,11 @@ class PureBaseVolumeDriver(san.SanDriver):
                                volume["size"])
         if qos is not None:
             LOG.debug('QoS: %(qos)s', {'qos': qos})
-            if qos['maxIOPS'] == '0' and qos['maxBWS'] == 0:
+            if qos['maxIOPS'] == 0 and qos['maxBWS'] == 0:
                 current_array.set_volume(vol_name,
                                          iops_limit='',
                                          bandwidth_limit='')
-            elif qos['maxIOPS'] == '0':
+            elif qos['maxIOPS'] == 0:
                 current_array.set_volume(vol_name,
                                          iops_limit='',
                                          bandwidth_limit=qos['maxBWS'])
@@ -1287,7 +1287,7 @@ class PureBaseVolumeDriver(san.SanDriver):
             qos = self._get_qos_settings(volume.volume_type)
             if qos is not None:
                 LOG.debug('QoS: %(qos)s', {'qos': qos})
-                if qos['maxIOPS'] == '0' and qos['maxBWS'] == 0:
+                if qos['maxIOPS'] == 0 and qos['maxBWS'] == 0:
                     current_array.set_volume(new_vol_name,
                                              iops_limit='',
                                              bandwidth_limit='')
@@ -1303,6 +1303,10 @@ class PureBaseVolumeDriver(san.SanDriver):
                     current_array.set_volume(new_vol_name,
                                              iops_limit=qos['maxIOPS'],
                                              bandwidth_limit=qos['maxBWS'])
+            else:
+                current_array.set_volume(new_vol_name,
+                                         iops_limit='',
+                                         bandwidth_limit='')
         volume.provider_id = new_vol_name
         async_enabled = self._enable_async_replication_if_needed(current_array,
                                                                  volume)
@@ -1658,15 +1662,17 @@ class PureBaseVolumeDriver(san.SanDriver):
             # Chack set vslues are within limits
             iops_qos = int(qos.get('maxIOPS', 0))
             bw_qos = int(qos.get('maxBWS', 0)) * 1048576
-            qos['maxBWS'] = bw_qos
-            if iops_qos != 0 and (100 >= iops_qos > 100000000):
+            if iops_qos != 0 and not (100 <= iops_qos <= 100000000):
                 msg = _('maxIOPS QoS error. Must be more than '
                         '100 and less than 100000000')
                 raise exception.InvalidQoSSpecs(message=msg)
-            if bw_qos != 0 and (1048576 >= bw_qos > 549755813888):
+            if bw_qos != 0 and not (1048576 <= bw_qos <= 549755813888):
                 msg = _('maxBWS QoS error. Must be between '
                         '1 and 524288')
                 raise exception.InvalidQoSSpecs(message=msg)
+
+            qos['maxIOPS'] = iops_qos
+            qos['maxBWS'] = bw_qos
         return qos
 
     def _generate_purity_vol_name(self, volume):
